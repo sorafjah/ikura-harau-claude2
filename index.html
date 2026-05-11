@@ -51,7 +51,7 @@
     gap: 6px;
   }
 
-  /* --- 通常モード --- */
+  /* 通常モード */
   #product-single {
     display: flex;
     flex-direction: row;
@@ -62,15 +62,13 @@
   #product-emoji { font-size: 48px; line-height: 1; flex-shrink: 0; }
   #product-price { font-size: 30px; font-weight: bold; color: var(--text); white-space: nowrap; }
 
-  /* --- 選択モード --- */
+  /* 選択モード */
   #product-select { display: none; flex-direction: column; gap: 6px; }
   #select-header  { font-size: 16px; font-weight: bold; color: var(--sub); }
-
   #select-cards-row {
     display: flex;
     flex-direction: row;
     gap: 8px;
-    justify-content: flex-start;
   }
   .product-card {
     display: flex;
@@ -141,13 +139,12 @@
     flex: 1; font-family: inherit; font-size: 15px; font-weight: bold;
     padding: 9px 10px; border-radius: 22px; border: none; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.12s, opacity 0.2s;
+    transition: transform 0.12s;
     white-space: nowrap;
   }
   .action-btn:active { transform: scale(0.93); }
   #btn-pay  { background: var(--accent); color: white; }
   #btn-cant { background: #d8c8a0; color: var(--sub); }
-  #btn-cant.disabled { opacity: 0.35; pointer-events: none; }
 
   /* ===== お金ボタン ===== */
   .money-btn {
@@ -272,11 +269,35 @@
   .s-val { font-size: 15px; font-weight: bold; color: var(--text); min-width: 24px; text-align: center; }
   .s-range-lbl { font-size: 12px; color: var(--sub); margin: 0 2px; white-space: nowrap; }
 
-  /* モード切り替えトグル */
-  .mode-toggle-row {
-    display: flex; align-items: center; justify-content: space-between; padding: 4px 0;
+  /* セグメントトグル（ひとつだけ / 複数から選ぶ） */
+  .seg-toggle {
+    display: flex;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    flex-shrink: 0;
   }
-  .mode-toggle-lbl { font-size: 14px; font-weight: bold; color: var(--text); flex: 1; padding-right: 12px; }
+  .seg-btn {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 6px 12px;
+    border: none;
+    background: white;
+    color: var(--sub);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .seg-btn.active {
+    background: var(--accent);
+    color: white;
+  }
+  .seg-btn:first-child { border-right: 1px solid var(--border); }
+
+  /* ONOFFトグル（合計表示など） */
   .toggle-switch {
     position: relative; width: 54px; height: 28px;
     cursor: pointer; -webkit-tap-highlight-color: transparent; flex-shrink: 0;
@@ -315,7 +336,6 @@
 
 <!-- ===== MAIN ===== -->
 <div id="main-screen" class="screen active">
-
   <div id="product-area">
     <!-- 通常モード -->
     <div id="product-single">
@@ -361,18 +381,6 @@
   <div id="settings-title-bar">せってい</div>
 
   <div class="s-card">
-    <h3>モード</h3>
-    <div class="mode-toggle-row">
-      <div class="mode-toggle-lbl">えらぶモード（複数の商品から選ぶ）</div>
-      <label class="toggle-switch">
-        <input type="checkbox" id="mode-toggle">
-        <div class="toggle-track"></div>
-        <div class="toggle-thumb"></div>
-      </label>
-    </div>
-  </div>
-
-  <div class="s-card">
     <h3>さいふのなかのおかね（まいすう）</h3>
     <div id="s-wallet-rows"></div>
   </div>
@@ -401,7 +409,23 @@
       <div class="s-lbl">きざみ</div>
       <div class="kizami-group" id="kizami-group"></div>
     </div>
+    <div class="s-row" style="margin-top:4px; border-top:1px solid var(--border); padding-top:8px; border-bottom:none;">
+      <div class="s-lbl">モード</div>
+      <div class="seg-toggle" id="mode-seg">
+        <button class="seg-btn active" data-mode="single">ひとつだけ</button>
+        <button class="seg-btn"        data-mode="select">複数から選ぶ</button>
+      </div>
+    </div>
+    <div class="s-row" id="row-show-total" style="display:none;">
+      <div class="s-lbl">えらんだごうけいを表示</div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-show-total" checked>
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
   </div>
+
   <button id="s-back-btn">もどる</button>
 </div>
 
@@ -431,15 +455,13 @@ const DEFAULT_WALLET = { 1000:1, 500:2, 100:2, 50:2, 10:4, 5:0, 1:0 };
 let wallet = { ...DEFAULT_WALLET };
 let minPrice = 100, maxPrice = 800, kizami = 10;
 const KIZAMI_OPTIONS = [1, 10, 50, 100];
-let selectMode = false;
+let selectMode = false;   // false=ひとつだけ, true=複数から選ぶ
+let showTotal = true;     // えらんだごうけい表示
 
-// 通常モード用
 let currentPrice = 0, currentEmoji = '🍩';
-// 選択モード用
-let shelfItems = [];          // [{emoji, price}]
+let shelfItems = [];
 let chosenIndices = new Set();
-
-let selected = [];            // 財布から選んだお金
+let selected = [];
 let busy = false;
 let uidCounter = 0;
 
@@ -468,7 +490,9 @@ function coinSVG(val, size) {
   const c = C[val], r = size/2, holeR = size*0.11;
   const ts = val>=100 ? size*0.26 : val>=10 ? size*0.30 : size*0.36;
   const textY = c.hole ? r*0.52+ts*0.38 : r+ts*0.38;
-  const hole = c.hole ? `<circle cx="${r}" cy="${r}" r="${holeR}" fill="#fff8e7" stroke="${c.rim}" stroke-width="1.2"/>` : '';
+  const hole = c.hole
+    ? `<circle cx="${r}" cy="${r}" r="${holeR}" fill="#fff8e7" stroke="${c.rim}" stroke-width="1.2"/>`
+    : '';
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
   <circle cx="${r}" cy="${r}" r="${r-1}" fill="${c.rim}"/>
   <circle cx="${r}" cy="${r}" r="${r-3}" fill="${c.bg}"/>
@@ -501,17 +525,15 @@ function randomPrice() {
 /* ===== 商品生成 ===== */
 function generateProduct() {
   if (selectMode) {
-    const n = 1 + Math.floor(Math.random() * 4); // 1〜4個
+    const n = 1 + Math.floor(Math.random() * 4);
     const shuffled = [...PRODUCTS].sort(() => Math.random() - 0.5);
     shelfItems = [];
     for (let i = 0; i < n; i++) {
-      const p = shuffled[i % shuffled.length];
-      shelfItems.push({ emoji: p[0], price: randomPrice() });
+      shelfItems.push({ emoji: shuffled[i][0], price: randomPrice() });
     }
     chosenIndices.clear();
     renderShelf();
     updateSelectTotal();
-    updateCantBtn();
     document.getElementById('product-single').style.display = 'none';
     document.getElementById('product-select').style.display = 'flex';
   } else {
@@ -533,14 +555,13 @@ function renderShelf() {
     const card = document.createElement('div');
     card.className = 'product-card' + (chosenIndices.has(idx) ? ' chosen' : '');
     card.innerHTML = `<div class="card-emoji">${item.emoji}</div><div class="card-price">${item.price}円</div>`;
-    card.addEventListener('pointerdown', (e) => {
+    card.addEventListener('pointerdown', e => {
       e.preventDefault();
       if (busy) return;
       if (chosenIndices.has(idx)) chosenIndices.delete(idx);
       else chosenIndices.add(idx);
       card.classList.toggle('chosen', chosenIndices.has(idx));
       updateSelectTotal();
-      updateCantBtn();
     });
     row.appendChild(card);
   });
@@ -557,24 +578,18 @@ function updateSelectTotal() {
   currentPrice = t;
 }
 
-/* かえないボタン活性制御（選択モードのみ） */
-function updateCantBtn() {
-  if (!selectMode) return;
-  const chosen = getChosenTotal();
-  const canUse = chosen > 0 && chosen > walletSum();
-  document.getElementById('btn-cant').classList.toggle('disabled', !canUse);
-}
-
+/* ===== さいふ（枚数0の金種は行ごと省く） ===== */
 function walletSum() {
   return Object.entries(wallet).reduce((s, [v, c]) => s + Number(v)*c, 0);
 }
 
-/* ===== さいふ描画 ===== */
 function renderWallet(returnCoins) {
   const area = document.getElementById('wallet-area');
   area.innerHTML = '';
-  for (const d of DENOMS) {
-    const count = wallet[d.val] || 0;
+  // 枚数が1枚以上の金種だけ表示
+  const activedenoms = DENOMS.filter(d => (wallet[d.val] || 0) > 0);
+  activedenoms.forEach((d, rowIdx) => {
+    const count = wallet[d.val];
     const row = document.createElement('div');
     row.className = 'denom-row';
     const isNote = d.type === 'note';
@@ -598,14 +613,16 @@ function renderWallet(returnCoins) {
           btn.classList.add('returning');
         }
       }
-      btn.addEventListener('pointerdown', (e) => {
+      btn.addEventListener('pointerdown', e => {
         e.preventDefault();
         toggleMoney(d.val, uid, btn);
       });
       row.appendChild(btn);
     }
+    // 最後の行だけ border-bottom なし
+    if (rowIdx === activedenoms.length - 1) row.style.borderBottom = 'none';
     area.appendChild(row);
-  }
+  });
 }
 
 /* ===== お金の選択 ===== */
@@ -709,22 +726,20 @@ function nextRound() {
   generateProduct();
 }
 
-/* ===== かえない ===== */
+/* ===== かえない（常時押せる） ===== */
 function doCant() {
   if (busy) return;
-  if (selectMode) {
-    // disabled制御済みなので、ここに来る＝合計が財布を超えている
-    busy = true;
-    playBell();
-    showToast('そうだね！', 1400, () => { busy = false; generateProduct(); });
-  } else {
-    if (walletSum() >= currentPrice) {
-      playBell(); showToast('かえるよ！', 1400); return;
-    }
-    busy = true;
-    playBell();
-    showToast('そうだね！', 1400, () => { busy = false; generateProduct(); });
+  // 選択モード：chosenがある場合のみ合計と比較、なければ財布全体と比較
+  const payTarget = selectMode ? getChosenTotal() : currentPrice;
+  const effective = (selectMode && chosenIndices.size === 0) ? 0 : payTarget;
+
+  if (effective > 0 && walletSum() >= effective) {
+    // 買えるのに「かえない」
+    playBell(); showToast('かえるよ！', 1400); return;
   }
+  busy = true;
+  playBell();
+  showToast('そうだね！', 1400, () => { busy = false; generateProduct(); });
 }
 
 /* ===== はじめから ===== */
@@ -773,6 +788,10 @@ function playBell() {
 }
 
 /* ===== 設定 ===== */
+function applyShowTotal() {
+  document.getElementById('select-total-row').style.display = showTotal ? 'flex' : 'none';
+}
+
 function openSettings() {
   buildSettingsUI();
   document.getElementById('main-screen').classList.remove('active');
@@ -786,7 +805,7 @@ function closeSettings() {
   generateProduct();
 }
 function buildSettingsUI() {
-  document.getElementById('mode-toggle').checked = selectMode;
+  // 財布
   const wr = document.getElementById('s-wallet-rows');
   wr.innerHTML = '';
   for (const d of DENOMS) {
@@ -804,8 +823,10 @@ function buildSettingsUI() {
       </div>`;
     wr.appendChild(row);
   }
+  // ねだん
   document.getElementById('s-min-price').textContent = minPrice;
   document.getElementById('s-max-price').textContent = maxPrice;
+  // きざみ
   const kg = document.getElementById('kizami-group');
   kg.innerHTML = '';
   for (const k of KIZAMI_OPTIONS) {
@@ -814,6 +835,13 @@ function buildSettingsUI() {
     btn.textContent = k + '円'; btn.dataset.kizami = k;
     kg.appendChild(btn);
   }
+  // モード切り替えボタン
+  document.querySelectorAll('#mode-seg .seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === (selectMode ? 'select' : 'single'));
+  });
+  // 合計表示トグル：選択モードのときだけ表示
+  document.getElementById('row-show-total').style.display = selectMode ? 'flex' : 'none';
+  document.getElementById('toggle-show-total').checked = showTotal;
 }
 function changeMinPrice(delta) {
   minPrice = Math.max(kizami, minPrice + delta * kizami);
@@ -839,8 +867,21 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('gear-btn').addEventListener('click', openSettings);
   document.getElementById('s-back-btn').addEventListener('click', closeSettings);
 
-  document.getElementById('mode-toggle').addEventListener('change', (e) => {
-    selectMode = e.target.checked;
+  // モード切り替えセグメント
+  document.getElementById('mode-seg').addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    selectMode = btn.dataset.mode === 'select';
+    document.querySelectorAll('#mode-seg .seg-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+    });
+    // 選択モードのときだけ「合計表示」行を出す
+    document.getElementById('row-show-total').style.display = selectMode ? 'flex' : 'none';
+  });
+
+  // 合計表示トグル
+  document.getElementById('toggle-show-total').addEventListener('change', e => {
+    showTotal = e.target.checked;
   });
 
   document.getElementById('s-min-minus').addEventListener('click', () => changeMinPrice(-1));
@@ -848,7 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('s-max-minus').addEventListener('click', () => changeMaxPrice(-1));
   document.getElementById('s-max-plus').addEventListener('click',  () => changeMaxPrice(+1));
 
-  document.getElementById('s-wallet-rows').addEventListener('click', (e) => {
+  document.getElementById('s-wallet-rows').addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const val = Number(btn.dataset.val);
@@ -858,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.textContent = wallet[val];
   });
 
-  document.getElementById('kizami-group').addEventListener('click', (e) => {
+  document.getElementById('kizami-group').addEventListener('click', e => {
     const btn = e.target.closest('[data-kizami]');
     if (!btn) return;
     kizami = Number(btn.dataset.kizami);
@@ -870,7 +911,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('s-max-price').textContent = maxPrice;
   });
 
-  setTimeout(() => { generateProduct(); renderWallet(null); }, 50);
+  setTimeout(() => {
+    applyShowTotal();
+    generateProduct();
+    renderWallet(null);
+  }, 50);
 });
 </script>
 </body>
