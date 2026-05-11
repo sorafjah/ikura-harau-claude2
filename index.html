@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>おかいものシミュレーター</title>
+<style>
+  :root {
+    --bg: #fdf6e3;
+    --surface: #fff8e7;
+    --border: #e8d5a3;
+    --text: #3d2c00;
+    --sub: #7a5f28;
+    --accent: #e8913a;
+    --correct: #4caf50;
+    --wallet-max: 800px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'BIZ UDPGothic', 'BIZ UDGothic', sans-serif;
+    background: var(--bg);
+    overflow: hidden;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .screen { display: none; position: absolute; top:0; left:0; width:100%; height:100%; }
+  .screen.active { display: flex; }
+
+  /* ===== MAIN ===== */
+  #main-screen {
+    flex-direction: column;
+    align-items: center;
+    padding: 6px;
+    gap: 6px;
+    width: 100%;
+  }
+
+  /* ===== 商品エリア ===== */
+  #product-area {
+    width: 100%;
+    max-width: var(--wallet-max);
+    flex-shrink: 0;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* --- 通常モード --- */
+  #product-single {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  #product-label { font-size: 20px; font-weight: bold; color: var(--sub); white-space: nowrap; flex-shrink: 0; }
+  #product-emoji { font-size: 48px; line-height: 1; flex-shrink: 0; }
+  #product-price { font-size: 30px; font-weight: bold; color: var(--text); white-space: nowrap; }
+
+  /* --- 選択モード --- */
+  #product-select { display: none; flex-direction: column; gap: 6px; }
+  #select-header  { font-size: 16px; font-weight: bold; color: var(--sub); }
+
+  #select-cards-row {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .product-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 8px 8px;
+    border-radius: 14px;
+    border: 3px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.14s, border-color 0.14s, box-shadow 0.14s, background 0.14s;
+    flex: 1;
+    min-width: 60px;
+  }
+  .product-card:active { transform: scale(0.90); }
+  .product-card.chosen {
+    border-color: var(--accent);
+    background: #fff3e0;
+    box-shadow: 0 4px 14px rgba(232,145,58,0.38);
+    transform: translateY(-5px) scale(1.05);
+  }
+  .card-emoji { font-size: 36px; line-height: 1; }
+  .card-price { font-size: 16px; font-weight: bold; color: var(--text); white-space: nowrap; }
+
+  #select-total-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    border-top: 2px solid var(--border);
+    padding-top: 5px;
+  }
+  #select-total-label { font-size: 15px; font-weight: bold; color: var(--sub); }
+  #select-total-price  { font-size: 26px; font-weight: bold; color: var(--accent); min-width: 80px; text-align: right; }
+
+  /* ===== さいふのなか ===== */
+  #wallet-block {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 4px;
+    width: 100%; max-width: var(--wallet-max);
+    min-height: 0;
+  }
+  #wallet-title { font-size: 18px; font-weight: bold; color: var(--sub); padding-left: 2px; flex-shrink: 0; }
+  #wallet-area {
+    flex: 1;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 10px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .denom-row {
+    display: flex; align-items: center; gap: 5px;
+    flex-wrap: nowrap; padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    min-height: 62px;
+  }
+  .denom-row:last-child { border-bottom: none; }
+
+  /* ===== ボタン行 ===== */
+  #btn-row { display: flex; gap: 10px; width: 100%; max-width: var(--wallet-max); flex-shrink: 0; }
+  .action-btn {
+    flex: 1; font-family: inherit; font-size: 15px; font-weight: bold;
+    padding: 9px 10px; border-radius: 22px; border: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s, opacity 0.2s;
+    white-space: nowrap;
+  }
+  .action-btn:active { transform: scale(0.93); }
+  #btn-pay  { background: var(--accent); color: white; }
+  #btn-cant { background: #d8c8a0; color: var(--sub); }
+  #btn-cant.disabled { opacity: 0.35; pointer-events: none; }
+
+  /* ===== お金ボタン ===== */
+  .money-btn {
+    background: none; border: 3px solid transparent; border-radius: 50%;
+    padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    position: relative; flex-shrink: 0;
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    transform-origin: center bottom;
+  }
+  .money-btn.is-note { border-radius: 8px; }
+  .money-btn:active  { transform: scale(0.88); }
+  .money-btn.selected {
+    border-color: #1976D2;
+    transform: translateY(-8px) scale(1.12);
+    box-shadow: 0 6px 16px rgba(25,118,210,0.5);
+  }
+  @keyframes flyPay {
+    0%   { transform: scale(1) translateY(0); opacity: 1; }
+    60%  { transform: scale(0.7) translateY(-30px); opacity: 0.7; }
+    100% { transform: scale(0.3) translateY(-80px); opacity: 0; }
+  }
+  .money-btn.paying { animation: flyPay 0.42s ease forwards; }
+  @keyframes flyReturn {
+    0%   { transform: scale(0.2) translateY(60px); opacity: 0; }
+    50%  { transform: scale(1.15) translateY(-6px); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .money-btn.returning { animation: flyReturn 0.45s cubic-bezier(.22,1,.36,1) both; }
+
+  /* ===== 買えたよポップアップ ===== */
+  #bought-popup {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(40,20,0,0.45);
+    display: none; align-items: center; justify-content: center;
+    z-index: 500;
+  }
+  #bought-popup.show { display: flex; }
+  #bought-popup-inner {
+    background: white; border-radius: 24px; padding: 24px 32px;
+    text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both;
+    max-width: 90vw;
+  }
+  @keyframes popIn {
+    0%   { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+  #bought-emoji-big   { font-size: 52px; line-height: 1; letter-spacing: 4px; }
+  #bought-title       { font-size: 28px; font-weight: bold; color: var(--correct); }
+  #bought-change-info { font-size: 26px; font-weight: bold; color: var(--text); }
+  #btn-get-change, #btn-ok-nochange {
+    font-family: inherit; font-size: 18px; font-weight: bold;
+    padding: 12px 36px; border: none; border-radius: 28px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; color: white;
+  }
+  #btn-get-change  { background: var(--correct); }
+  #btn-ok-nochange { background: var(--accent); }
+
+  /* ===== トースト ===== */
+  #toast {
+    position: fixed; top:50%; left:50%;
+    transform: translate(-50%,-50%) scale(0.6);
+    background: rgba(50,30,0,0.88);
+    color:#fff; font-size:28px; font-weight:bold;
+    padding:18px 36px; border-radius:24px;
+    pointer-events:none; opacity:0; z-index:300;
+    transition: opacity 0.2s, transform 0.2s;
+    white-space: nowrap;
+  }
+  #toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+  /* ===== 左下ボタン群 ===== */
+  #bottom-left-btns {
+    position: fixed; bottom: 8px; left: 8px;
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 5px; z-index: 100;
+  }
+  #reset-btn {
+    background: #e8e0d0; color: var(--sub);
+    font-family: inherit; font-size: 13px; font-weight: bold;
+    padding: 7px 13px; border: none; border-radius: 18px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    opacity: 0.85; white-space: nowrap;
+  }
+  #reset-btn:active { transform: scale(0.93); }
+  #gear-btn {
+    width: 32px; height: 32px; background: none; border: none;
+    cursor: pointer; opacity: 0.22; padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #gear-btn:hover { opacity: 0.5; }
+
+  /* ===== SETTINGS ===== */
+  #settings-screen {
+    flex-direction: column; align-items: center;
+    padding: 14px 12px; gap: 10px; overflow-y: auto;
+  }
+  #settings-title-bar { font-size: 18px; font-weight: bold; color: var(--text); }
+  .s-card {
+    width: 100%; max-width: 560px;
+    background: var(--surface);
+    border: 2px solid var(--border); border-radius: 14px; padding: 10px 12px;
+  }
+  .s-card h3 { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+  .s-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; border-bottom: 1px solid var(--border); gap: 8px; flex-wrap: wrap;
+  }
+  .s-row:last-child { border-bottom: none; }
+  .s-lbl { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: var(--text); flex-shrink: 0; }
+  .s-ctrl { display: flex; align-items: center; gap: 3px; }
+  .step-btn {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--border); background: white;
+    font-size: 16px; cursor: pointer; font-family: inherit; color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .step-btn:active { background: #fff0cc; }
+  .s-val { font-size: 15px; font-weight: bold; color: var(--text); min-width: 24px; text-align: center; }
+  .s-range-lbl { font-size: 12px; color: var(--sub); margin: 0 2px; white-space: nowrap; }
+
+  /* モード切り替えトグル */
+  .mode-toggle-row {
+    display: flex; align-items: center; justify-content: space-between; padding: 4px 0;
+  }
+  .mode-toggle-lbl { font-size: 14px; font-weight: bold; color: var(--text); flex: 1; padding-right: 12px; }
+  .toggle-switch {
+    position: relative; width: 54px; height: 28px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+  }
+  .toggle-switch input { display: none; }
+  .toggle-track {
+    position: absolute; inset: 0; border-radius: 14px;
+    background: #ccc; transition: background 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background: var(--accent); }
+  .toggle-thumb {
+    position: absolute; top: 3px; left: 3px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    transition: left 0.2s;
+    pointer-events: none;
+  }
+  .toggle-switch input:checked ~ .toggle-thumb { left: 29px; }
+
+  .kizami-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .kizami-btn {
+    padding: 6px 14px; border-radius: 16px;
+    border: 2px solid var(--border); background: white;
+    font-size: 13px; font-weight: bold; color: var(--sub);
+    cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent;
+  }
+  .kizami-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+  #s-back-btn {
+    padding: 10px 44px; background: var(--accent); color: white;
+    border: none; border-radius: 22px;
+    font-size: 16px; font-weight: bold; cursor: pointer; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== MAIN ===== -->
+<div id="main-screen" class="screen active">
+
+  <div id="product-area">
+    <!-- 通常モード -->
+    <div id="product-single">
+      <div id="product-label">ほしいもの</div>
+      <div id="product-emoji">🍩</div>
+      <div id="product-price">120円</div>
+    </div>
+    <!-- 選択モード -->
+    <div id="product-select">
+      <div id="select-header">ほしいものをえらぼう</div>
+      <div id="select-cards-row"></div>
+      <div id="select-total-row">
+        <div id="select-total-label">えらんだごうけい</div>
+        <div id="select-total-price">0円</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="wallet-block">
+    <div id="wallet-title">さいふのなか</div>
+    <div id="wallet-area"></div>
+  </div>
+
+  <div id="btn-row">
+    <button class="action-btn" id="btn-pay">しはらう</button>
+    <button class="action-btn" id="btn-cant">かえない</button>
+  </div>
+</div>
+
+<!-- ===== 買えたよポップアップ ===== -->
+<div id="bought-popup">
+  <div id="bought-popup-inner">
+    <div id="bought-emoji-big">🍩</div>
+    <div id="bought-title">かえたよ！</div>
+    <div id="bought-change-info" style="display:none"></div>
+    <button id="btn-get-change"  style="display:none">おつりをもらう</button>
+    <button id="btn-ok-nochange" style="display:none">つぎへ</button>
+  </div>
+</div>
+
+<!-- ===== SETTINGS ===== -->
+<div id="settings-screen" class="screen">
+  <div id="settings-title-bar">せってい</div>
+
+  <div class="s-card">
+    <h3>モード</h3>
+    <div class="mode-toggle-row">
+      <div class="mode-toggle-lbl">えらぶモード（複数の商品から選ぶ）</div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="mode-toggle">
+        <div class="toggle-track"></div>
+        <div class="toggle-thumb"></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="s-card">
+    <h3>さいふのなかのおかね（まいすう）</h3>
+    <div id="s-wallet-rows"></div>
+  </div>
+
+  <div class="s-card">
+    <h3>ほしいものの ねだん</h3>
+    <div class="s-row">
+      <div class="s-lbl">下限</div>
+      <div class="s-ctrl">
+        <button class="step-btn" id="s-min-minus">－</button>
+        <div class="s-val" id="s-min-price">100</div>
+        <button class="step-btn" id="s-min-plus">＋</button>
+        <span class="s-range-lbl">円</span>
+      </div>
+    </div>
+    <div class="s-row">
+      <div class="s-lbl">上限</div>
+      <div class="s-ctrl">
+        <button class="step-btn" id="s-max-minus">－</button>
+        <div class="s-val" id="s-max-price">800</div>
+        <button class="step-btn" id="s-max-plus">＋</button>
+        <span class="s-range-lbl">円</span>
+      </div>
+    </div>
+    <div class="s-row">
+      <div class="s-lbl">きざみ</div>
+      <div class="kizami-group" id="kizami-group"></div>
+    </div>
+  </div>
+  <button id="s-back-btn">もどる</button>
+</div>
+
+<div id="toast"></div>
+
+<div id="bottom-left-btns">
+  <button id="reset-btn">はじめから</button>
+  <button id="gear-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" width="32" height="32">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+const DENOMS = [
+  { val:1000, label:'1000円', type:'note' },
+  { val:500,  label:'500円',  type:'coin' },
+  { val:100,  label:'100円',  type:'coin' },
+  { val:50,   label:'50円',   type:'coin' },
+  { val:10,   label:'10円',   type:'coin' },
+  { val:5,    label:'5円',    type:'coin' },
+  { val:1,    label:'1円',    type:'coin' },
+];
+const DEFAULT_WALLET = { 1000:1, 500:2, 100:2, 50:2, 10:4, 5:0, 1:0 };
+let wallet = { ...DEFAULT_WALLET };
+let minPrice = 100, maxPrice = 800, kizami = 10;
+const KIZAMI_OPTIONS = [1, 10, 50, 100];
+let selectMode = false;
+
+// 通常モード用
+let currentPrice = 0, currentEmoji = '🍩';
+// 選択モード用
+let shelfItems = [];          // [{emoji, price}]
+let chosenIndices = new Set();
+
+let selected = [];            // 財布から選んだお金
+let busy = false;
+let uidCounter = 0;
+
+const COIN_SIZE = 54, NOTE_W = 86, NOTE_H = 50;
+
+const PRODUCTS = [
+  ['🍩','ドーナツ'],['🍪','クッキー'],['🍭','キャンディ'],['🍫','チョコレート'],
+  ['🧃','ジュース'],['🍞','パン'],['🍙','おにぎり'],['🥪','サンドイッチ'],
+  ['🍜','ラーメン'],['🍦','アイスクリーム'],['🍰','ケーキ'],['🍿','ポップコーン'],
+  ['✏️','えんぴつ'],['📓','ノート'],['🖍️','クレヨン'],['🎮','ゲーム'],
+  ['🧸','ぬいぐるみ'],['⚽','ボール'],['🎨','えのぐ'],['🪀','ヨーヨー'],
+  ['🍎','りんご'],['🍌','バナナ'],['🍇','ぶどう'],['🍓','いちご'],
+  ['🎀','リボン'],['🖊️','ボールペン'],['📎','クリップ'],['🧩','パズル'],
+];
+
+/* ===== SVG ===== */
+function coinSVG(val, size) {
+  const C = {
+    1:   { bg:'#b2b2b2', inner:'#d4d4d4', rim:'#444',    text:'1',   hole:false },
+    5:   { bg:'#c8a84b', inner:'#e0c060', rim:'#5a3a00', text:'5',   hole:true  },
+    10:  { bg:'#b87333', inner:'#d4946a', rim:'#4a1800', text:'10',  hole:false },
+    50:  { bg:'#b0b0b0', inner:'#d0d0d0', rim:'#333',    text:'50',  hole:true  },
+    100: { bg:'#a8a8a8', inner:'#c8c8c8', rim:'#2a2a2a', text:'100', hole:false },
+    500: { bg:'#a0a8b0', inner:'#c0c8d0', rim:'#1a3060', text:'500', hole:false },
+  };
+  const c = C[val], r = size/2, holeR = size*0.11;
+  const ts = val>=100 ? size*0.26 : val>=10 ? size*0.30 : size*0.36;
+  const textY = c.hole ? r*0.52+ts*0.38 : r+ts*0.38;
+  const hole = c.hole ? `<circle cx="${r}" cy="${r}" r="${holeR}" fill="#fff8e7" stroke="${c.rim}" stroke-width="1.2"/>` : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="${r}" cy="${r}" r="${r-1}" fill="${c.rim}"/>
+  <circle cx="${r}" cy="${r}" r="${r-3}" fill="${c.bg}"/>
+  <circle cx="${r}" cy="${r}" r="${r-5}" fill="${c.inner}" opacity="0.5"/>
+  ${hole}
+  <text x="${r}" y="${textY}" text-anchor="middle" font-size="${ts}" font-weight="900"
+    fill="${c.rim}" font-family="BIZ UDPGothic,sans-serif">${c.text}</text>
+</svg>`;
+}
+function noteSVG(w, h, val) {
+  const c = { bg:'#ede0c4', border:'#7a5010', inner:'#f8f0dc' };
+  const ts = h * 0.33;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="${w-2}" height="${h-2}" rx="5" fill="${c.border}"/>
+  <rect x="3" y="3" width="${w-6}" height="${h-6}" rx="4" fill="${c.bg}"/>
+  <rect x="6" y="6" width="${w-12}" height="${h-12}" rx="3" fill="${c.inner}" opacity="0.55"/>
+  <text x="${w*0.5}" y="${h*0.63}" text-anchor="middle" font-size="${ts}" font-weight="900"
+    fill="${c.border}" font-family="BIZ UDPGothic,sans-serif">${val}</text>
+</svg>`;
+}
+
+/* ===== 価格ランダム生成 ===== */
+function randomPrice() {
+  const lo = Math.ceil(minPrice / kizami);
+  const hi = Math.floor(maxPrice / kizami);
+  const range = Math.max(hi - lo + 1, 1);
+  return Math.max((lo + Math.floor(Math.random() * range)) * kizami, kizami);
+}
+
+/* ===== 商品生成 ===== */
+function generateProduct() {
+  if (selectMode) {
+    const n = 1 + Math.floor(Math.random() * 4); // 1〜4個
+    const shuffled = [...PRODUCTS].sort(() => Math.random() - 0.5);
+    shelfItems = [];
+    for (let i = 0; i < n; i++) {
+      const p = shuffled[i % shuffled.length];
+      shelfItems.push({ emoji: p[0], price: randomPrice() });
+    }
+    chosenIndices.clear();
+    renderShelf();
+    updateSelectTotal();
+    updateCantBtn();
+    document.getElementById('product-single').style.display = 'none';
+    document.getElementById('product-select').style.display = 'flex';
+  } else {
+    const p = PRODUCTS[Math.floor(Math.random() * PRODUCTS.length)];
+    currentEmoji = p[0];
+    currentPrice = randomPrice();
+    document.getElementById('product-emoji').textContent = currentEmoji;
+    document.getElementById('product-price').textContent = currentPrice + '円';
+    document.getElementById('product-single').style.display = 'flex';
+    document.getElementById('product-select').style.display = 'none';
+  }
+}
+
+/* ===== 棚レンダリング ===== */
+function renderShelf() {
+  const row = document.getElementById('select-cards-row');
+  row.innerHTML = '';
+  shelfItems.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'product-card' + (chosenIndices.has(idx) ? ' chosen' : '');
+    card.innerHTML = `<div class="card-emoji">${item.emoji}</div><div class="card-price">${item.price}円</div>`;
+    card.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (busy) return;
+      if (chosenIndices.has(idx)) chosenIndices.delete(idx);
+      else chosenIndices.add(idx);
+      card.classList.toggle('chosen', chosenIndices.has(idx));
+      updateSelectTotal();
+      updateCantBtn();
+    });
+    row.appendChild(card);
+  });
+}
+
+function getChosenTotal() {
+  let t = 0;
+  chosenIndices.forEach(i => { t += shelfItems[i].price; });
+  return t;
+}
+function updateSelectTotal() {
+  const t = getChosenTotal();
+  document.getElementById('select-total-price').textContent = t > 0 ? t + '円' : '0円';
+  currentPrice = t;
+}
+
+/* かえないボタン活性制御（選択モードのみ） */
+function updateCantBtn() {
+  if (!selectMode) return;
+  const chosen = getChosenTotal();
+  const canUse = chosen > 0 && chosen > walletSum();
+  document.getElementById('btn-cant').classList.toggle('disabled', !canUse);
+}
+
+function walletSum() {
+  return Object.entries(wallet).reduce((s, [v, c]) => s + Number(v)*c, 0);
+}
+
+/* ===== さいふ描画 ===== */
+function renderWallet(returnCoins) {
+  const area = document.getElementById('wallet-area');
+  area.innerHTML = '';
+  for (const d of DENOMS) {
+    const count = wallet[d.val] || 0;
+    const row = document.createElement('div');
+    row.className = 'denom-row';
+    const isNote = d.type === 'note';
+    for (let i = 0; i < count; i++) {
+      const uid = ++uidCounter;
+      const btn = document.createElement('button');
+      btn.className = 'money-btn' + (isNote ? ' is-note' : '');
+      btn.dataset.uid = uid;
+      btn.dataset.val = d.val;
+      if (isNote) {
+        btn.style.cssText = `width:${NOTE_W}px;height:${NOTE_H}px`;
+        btn.innerHTML = noteSVG(NOTE_W, NOTE_H, d.val);
+      } else {
+        btn.style.cssText = `width:${COIN_SIZE}px;height:${COIN_SIZE}px`;
+        btn.innerHTML = coinSVG(d.val, COIN_SIZE);
+      }
+      if (returnCoins) {
+        const ri = returnCoins.find(r => r.val === d.val);
+        if (ri && i >= ri.existCount) {
+          btn.style.animationDelay = ((i - ri.existCount) * 80) + 'ms';
+          btn.classList.add('returning');
+        }
+      }
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        toggleMoney(d.val, uid, btn);
+      });
+      row.appendChild(btn);
+    }
+    area.appendChild(row);
+  }
+}
+
+/* ===== お金の選択 ===== */
+function toggleMoney(val, uid, btn) {
+  if (busy) return;
+  const idx = selected.findIndex(s => s.uid === uid);
+  if (idx >= 0) { selected.splice(idx, 1); btn.classList.remove('selected'); }
+  else          { selected.push({ val, uid, btn }); btn.classList.add('selected'); }
+}
+function clearSelection() {
+  for (const s of selected) s.btn.classList.remove('selected');
+  selected = [];
+}
+
+/* ===== しはらう ===== */
+function doPayment() {
+  if (busy) return;
+  if (selectMode && chosenIndices.size === 0) {
+    playBell(); showToast('なにかえらんでね', 1400); return;
+  }
+  const payTarget = selectMode ? getChosenTotal() : currentPrice;
+  if (payTarget === 0) { playBell(); showToast('なにかえらんでね', 1400); return; }
+  const total = selected.reduce((s, x) => s + x.val, 0);
+  if (total < payTarget) { playBell(); showToast('たりないよ', 1400); return; }
+
+  busy = true;
+  const change = total - payTarget;
+  playCharin();
+
+  const promises = selected.map((s, i) => new Promise(resolve => {
+    setTimeout(() => {
+      s.btn.classList.remove('selected');
+      s.btn.classList.add('paying');
+      setTimeout(resolve, 420);
+    }, i * 50);
+  }));
+
+  Promise.all(promises).then(() => {
+    for (const s of selected) {
+      wallet[s.val] = Math.max(0, (wallet[s.val] || 0) - 1);
+    }
+    selected = [];
+    busy = false;
+    renderWallet(null);
+    const boughtEmojis = selectMode
+      ? [...chosenIndices].map(i => shelfItems[i].emoji).join(' ')
+      : currentEmoji;
+    showBoughtPopup(change, boughtEmojis);
+  });
+}
+
+/* ===== 買えたよポップアップ ===== */
+function showBoughtPopup(change, emojiStr) {
+  document.getElementById('bought-emoji-big').textContent = emojiStr;
+  const info   = document.getElementById('bought-change-info');
+  const btnChg = document.getElementById('btn-get-change');
+  const btnOk  = document.getElementById('btn-ok-nochange');
+  if (change > 0) {
+    info.textContent = 'おつりは ' + change + '円';
+    info.style.display = 'block';
+    btnChg.style.display = 'inline-block';
+    btnChg.dataset.change = change;
+    btnOk.style.display = 'none';
+  } else {
+    info.style.display = 'none';
+    btnChg.style.display = 'none';
+    btnOk.style.display = 'inline-block';
+  }
+  document.getElementById('bought-popup').classList.add('show');
+}
+function closeBoughtPopup(receiveOtsuri, change) {
+  document.getElementById('bought-popup').classList.remove('show');
+  if (receiveOtsuri && change > 0) {
+    const denomVals = [500,100,50,10,5,1];
+    const returnCoins = [];
+    let rest = change;
+    for (const v of denomVals) {
+      const n = Math.floor(rest / v);
+      if (n > 0) {
+        returnCoins.push({ val:v, existCount: wallet[v]||0, count:n });
+        wallet[v] = (wallet[v]||0) + n;
+        rest -= v * n;
+      }
+    }
+    renderWallet(returnCoins);
+    setTimeout(() => nextRound(), returnCoins.length * 80 + 500);
+  } else {
+    nextRound();
+  }
+}
+function nextRound() {
+  const total = Object.values(wallet).reduce((s,c)=>s+c, 0);
+  if (total === 0) {
+    showToast('おかねがなくなったよ', 2000, () => {
+      wallet = { ...DEFAULT_WALLET };
+      renderWallet(null);
+      generateProduct();
+    });
+    return;
+  }
+  generateProduct();
+}
+
+/* ===== かえない ===== */
+function doCant() {
+  if (busy) return;
+  if (selectMode) {
+    // disabled制御済みなので、ここに来る＝合計が財布を超えている
+    busy = true;
+    playBell();
+    showToast('そうだね！', 1400, () => { busy = false; generateProduct(); });
+  } else {
+    if (walletSum() >= currentPrice) {
+      playBell(); showToast('かえるよ！', 1400); return;
+    }
+    busy = true;
+    playBell();
+    showToast('そうだね！', 1400, () => { busy = false; generateProduct(); });
+  }
+}
+
+/* ===== はじめから ===== */
+function resetAll() {
+  wallet = { ...DEFAULT_WALLET };
+  selected = []; busy = false; chosenIndices.clear();
+  document.getElementById('bought-popup').classList.remove('show');
+  renderWallet(null);
+  generateProduct();
+}
+
+/* ===== トースト ===== */
+function showToast(msg, dur, cb) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); if (cb) setTimeout(cb, 200); }, dur);
+}
+
+/* ===== 音 ===== */
+const AudioCtxCls = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function getACtx() {
+  if (!audioCtx) audioCtx = new AudioCtxCls();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playCharin() {
+  const ctx = getACtx(), t = ctx.currentTime;
+  [[1200,t,0.15],[1500,t+0.1,0.15],[1800,t+0.2,0.15]].forEach(([freq,start,dur]) => {
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,start); g.gain.linearRampToValueAtTime(0.25,start+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,start+dur);
+    o.connect(g); g.connect(ctx.destination); o.start(start); o.stop(start+dur+0.02);
+  });
+}
+function playBell() {
+  const ctx = getACtx(), t = ctx.currentTime;
+  [[880,t,0.18],[1100,t+0.22,0.18]].forEach(([freq,start,dur]) => {
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,start); g.gain.linearRampToValueAtTime(0.28,start+0.03);
+    g.gain.exponentialRampToValueAtTime(0.001,start+dur);
+    o.connect(g); g.connect(ctx.destination); o.start(start); o.stop(start+dur+0.05);
+  });
+}
+
+/* ===== 設定 ===== */
+function openSettings() {
+  buildSettingsUI();
+  document.getElementById('main-screen').classList.remove('active');
+  document.getElementById('settings-screen').classList.add('active');
+}
+function closeSettings() {
+  document.getElementById('settings-screen').classList.remove('active');
+  document.getElementById('main-screen').classList.add('active');
+  clearSelection(); chosenIndices.clear();
+  renderWallet(null);
+  generateProduct();
+}
+function buildSettingsUI() {
+  document.getElementById('mode-toggle').checked = selectMode;
+  const wr = document.getElementById('s-wallet-rows');
+  wr.innerHTML = '';
+  for (const d of DENOMS) {
+    const isNote = d.type === 'note';
+    const thumb = isNote ? noteSVG(48, 28, d.val) : coinSVG(d.val, 28);
+    const row = document.createElement('div');
+    row.className = 's-row';
+    row.innerHTML = `
+      <div class="s-lbl">${thumb}<span>${d.label}</span></div>
+      <div class="s-ctrl">
+        <button class="step-btn" data-action="wdec" data-val="${d.val}">－</button>
+        <div class="s-val" id="sw-${d.val}">${wallet[d.val]||0}</div>
+        <button class="step-btn" data-action="winc" data-val="${d.val}">＋</button>
+        <span class="s-range-lbl">まい</span>
+      </div>`;
+    wr.appendChild(row);
+  }
+  document.getElementById('s-min-price').textContent = minPrice;
+  document.getElementById('s-max-price').textContent = maxPrice;
+  const kg = document.getElementById('kizami-group');
+  kg.innerHTML = '';
+  for (const k of KIZAMI_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.className = 'kizami-btn' + (k === kizami ? ' active' : '');
+    btn.textContent = k + '円'; btn.dataset.kizami = k;
+    kg.appendChild(btn);
+  }
+}
+function changeMinPrice(delta) {
+  minPrice = Math.max(kizami, minPrice + delta * kizami);
+  if (minPrice > maxPrice) maxPrice = minPrice;
+  document.getElementById('s-min-price').textContent = minPrice;
+  document.getElementById('s-max-price').textContent = maxPrice;
+}
+function changeMaxPrice(delta) {
+  maxPrice = Math.max(minPrice, maxPrice + delta * kizami);
+  document.getElementById('s-max-price').textContent = maxPrice;
+}
+
+/* ===== イベント ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('btn-pay').addEventListener('click', doPayment);
+  document.getElementById('btn-cant').addEventListener('click', doCant);
+  document.getElementById('btn-get-change').addEventListener('click', () => {
+    const c = parseInt(document.getElementById('btn-get-change').dataset.change || '0');
+    closeBoughtPopup(true, c);
+  });
+  document.getElementById('btn-ok-nochange').addEventListener('click', () => closeBoughtPopup(false, 0));
+  document.getElementById('reset-btn').addEventListener('click', resetAll);
+  document.getElementById('gear-btn').addEventListener('click', openSettings);
+  document.getElementById('s-back-btn').addEventListener('click', closeSettings);
+
+  document.getElementById('mode-toggle').addEventListener('change', (e) => {
+    selectMode = e.target.checked;
+  });
+
+  document.getElementById('s-min-minus').addEventListener('click', () => changeMinPrice(-1));
+  document.getElementById('s-min-plus').addEventListener('click',  () => changeMinPrice(+1));
+  document.getElementById('s-max-minus').addEventListener('click', () => changeMaxPrice(-1));
+  document.getElementById('s-max-plus').addEventListener('click',  () => changeMaxPrice(+1));
+
+  document.getElementById('s-wallet-rows').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const val = Number(btn.dataset.val);
+    const delta = btn.dataset.action === 'winc' ? 1 : -1;
+    wallet[val] = Math.max(0, Math.min(10, (wallet[val]||0) + delta));
+    const el = document.getElementById('sw-' + val);
+    if (el) el.textContent = wallet[val];
+  });
+
+  document.getElementById('kizami-group').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-kizami]');
+    if (!btn) return;
+    kizami = Number(btn.dataset.kizami);
+    document.querySelectorAll('.kizami-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    minPrice = Math.max(kizami, Math.round(minPrice / kizami) * kizami);
+    maxPrice = Math.max(minPrice, Math.round(maxPrice / kizami) * kizami);
+    document.getElementById('s-min-price').textContent = minPrice;
+    document.getElementById('s-max-price').textContent = maxPrice;
+  });
+
+  setTimeout(() => { generateProduct(); renderWallet(null); }, 50);
+});
+</script>
+</body>
+</html>
