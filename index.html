@@ -413,8 +413,8 @@
     <div class="s-row" style="margin-top:4px; border-top:1px solid var(--border); padding-top:8px; border-bottom:none;">
       <div class="s-lbl">モード</div>
       <div class="seg-toggle" id="mode-seg">
-        <button class="seg-btn active" data-mode="single">ひとつだけ</button>
-        <button class="seg-btn"        data-mode="select">複数から選ぶ</button>
+        <button class="seg-btn" 　　　　data-mode="single">ひとつだけ</button>
+        <button class="seg-btn active" data-mode="select">複数から選ぶ</button>
       </div>
     </div>
     <div class="s-row" id="row-show-total" style="display:none;">
@@ -456,7 +456,7 @@ const DEFAULT_WALLET = { 1000:1, 500:2, 100:2, 50:2, 10:4, 5:0, 1:0 };
 let wallet = { ...DEFAULT_WALLET };
 let minPrice = 100, maxPrice = 800, kizami = 10;
 const KIZAMI_OPTIONS = [1, 10, 50, 100];
-let selectMode = false;   // false=ひとつだけ, true=複数から選ぶ
+let selectMode = true;   // false=ひとつだけ, true=複数から選ぶ
 let showTotal = true;     // えらんだごうけい表示
 
 let currentPrice = 0, currentEmoji = '🍩';
